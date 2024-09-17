@@ -13,45 +13,6 @@
  */
 package io.airlift.resolver;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import io.airlift.resolver.internal.ConsoleRepositoryListener;
-import io.airlift.resolver.internal.ConsoleTransferListener;
-import io.airlift.resolver.internal.Slf4jLoggerManager;
-import org.apache.maven.artifact.repository.ArtifactRepository;
-import org.apache.maven.project.DefaultProjectBuildingRequest;
-import org.apache.maven.project.MavenProject;
-import org.apache.maven.project.ProjectBuilder;
-import org.apache.maven.project.ProjectBuildingRequest;
-import org.apache.maven.project.ProjectBuildingResult;
-import org.apache.maven.repository.internal.MavenRepositorySystemSession;
-import org.apache.maven.repository.internal.MavenServiceLocator;
-import org.codehaus.plexus.ContainerConfiguration;
-import org.codehaus.plexus.DefaultContainerConfiguration;
-import org.codehaus.plexus.DefaultPlexusContainer;
-import org.codehaus.plexus.PlexusContainer;
-import org.codehaus.plexus.PlexusContainerException;
-import org.codehaus.plexus.classworlds.ClassWorld;
-import org.codehaus.plexus.logging.Logger;
-import org.sonatype.aether.RepositorySystem;
-import org.sonatype.aether.artifact.Artifact;
-import org.sonatype.aether.collection.CollectRequest;
-import org.sonatype.aether.connector.async.AsyncRepositoryConnectorFactory;
-import org.sonatype.aether.connector.file.FileRepositoryConnectorFactory;
-import org.sonatype.aether.graph.Dependency;
-import org.sonatype.aether.graph.Exclusion;
-import org.sonatype.aether.impl.internal.SimpleLocalRepositoryManager;
-import org.sonatype.aether.repository.LocalRepositoryManager;
-import org.sonatype.aether.repository.RemoteRepository;
-import org.sonatype.aether.resolution.ArtifactResult;
-import org.sonatype.aether.resolution.DependencyRequest;
-import org.sonatype.aether.resolution.DependencyResolutionException;
-import org.sonatype.aether.resolution.DependencyResult;
-import org.sonatype.aether.spi.connector.RepositoryConnectorFactory;
-import org.sonatype.aether.util.artifact.DefaultArtifact;
-import org.sonatype.aether.util.artifact.JavaScopes;
-import org.sonatype.aether.util.filter.DependencyFilterUtils;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,6 +23,48 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import io.airlift.resolver.internal.ConsoleRepositoryListener;
+import io.airlift.resolver.internal.ConsoleTransferListener;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.project.DefaultProjectBuildingRequest;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.ProjectBuilder;
+import org.apache.maven.project.ProjectBuildingRequest;
+import org.apache.maven.project.ProjectBuildingResult;
+import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
+import org.codehaus.plexus.ContainerConfiguration;
+import org.codehaus.plexus.DefaultContainerConfiguration;
+import org.codehaus.plexus.DefaultPlexusContainer;
+import org.codehaus.plexus.PlexusConstants;
+import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.PlexusContainerException;
+import org.codehaus.plexus.classworlds.ClassWorld;
+import org.codehaus.plexus.component.repository.ComponentDescriptor;
+import org.codehaus.plexus.logging.Logger;
+import org.eclipse.aether.DefaultRepositorySystemSession;
+import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.artifact.Artifact;
+import org.eclipse.aether.artifact.DefaultArtifact;
+import org.eclipse.aether.collection.CollectRequest;
+import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory;
+import org.eclipse.aether.graph.Dependency;
+import org.eclipse.aether.graph.Exclusion;
+import org.eclipse.aether.impl.DefaultServiceLocator;
+import org.eclipse.aether.repository.LocalRepository;
+import org.eclipse.aether.repository.LocalRepositoryManager;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.resolution.ArtifactResult;
+import org.eclipse.aether.resolution.DependencyRequest;
+import org.eclipse.aether.resolution.DependencyResult;
+import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
+import org.eclipse.aether.spi.connector.transport.TransporterFactory;
+import org.eclipse.aether.transport.file.FileTransporterFactory;
+import org.eclipse.aether.transport.http.HttpTransporterFactory;
+import org.eclipse.aether.util.artifact.JavaScopes;
+import org.eclipse.aether.util.filter.DependencyFilterUtils;
+
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.function.Function.identity;
@@ -69,17 +72,18 @@ import static java.util.stream.Collectors.toMap;
 
 public class ArtifactResolver
 {
+
     public static final String USER_LOCAL_REPO = System.getProperty("user.home") + "/.m2/repository";
     public static final String MAVEN_CENTRAL_URI = "https://repo1.maven.org/maven2/";
-    public static final Set<String> DEPRECATED_MAVEN_CENTRAL_URIS = ImmutableSet.<String>builder()
-            .add("http://repo1.maven.org/maven2")
-            .add("http://repo1.maven.org/maven2/")
-            .add("http://repo.maven.apache.org/maven2")
-            .add("http://repo.maven.apache.org/maven2/")
-            .build();
+    public static final Set<String> DEPRECATED_MAVEN_CENTRAL_URIS = ImmutableSet.of(
+        "http://repo1.maven.org/maven2",
+        "http://repo1.maven.org/maven2/",
+        "http://repo.maven.apache.org/maven2",
+        "http://repo.maven.apache.org/maven2/"
+        );
 
     private final RepositorySystem repositorySystem;
-    private final MavenRepositorySystemSession repositorySystemSession;
+    private final DefaultRepositorySystemSession repositorySystemSession;
     private final List<RemoteRepository> repositories;
 
     public ArtifactResolver(String localRepositoryDir, String... remoteRepositoryUris)
@@ -89,14 +93,15 @@ public class ArtifactResolver
 
     public ArtifactResolver(String localRepositoryDir, List<String> remoteRepositoryUris)
     {
-        MavenServiceLocator locator = new MavenServiceLocator();
-        locator.addService(RepositoryConnectorFactory.class, FileRepositoryConnectorFactory.class);
-        locator.addService(RepositoryConnectorFactory.class, AsyncRepositoryConnectorFactory.class);
+        DefaultServiceLocator locator = MavenRepositorySystemUtils.newServiceLocator();
+        locator.addService(TransporterFactory.class, FileTransporterFactory.class);
+        locator.addService(TransporterFactory.class, HttpTransporterFactory.class);
+        locator.addService(RepositoryConnectorFactory.class, BasicRepositoryConnectorFactory.class);
         repositorySystem = locator.getService(RepositorySystem.class);
 
-        repositorySystemSession = new MavenRepositorySystemSession();
-
-        LocalRepositoryManager localRepositoryManager = new SimpleLocalRepositoryManager(localRepositoryDir);
+        repositorySystemSession = MavenRepositorySystemUtils.newSession();
+        LocalRepositoryManager localRepositoryManager = repositorySystem.newLocalRepositoryManager(
+                repositorySystemSession, new LocalRepository(localRepositoryDir));
         repositorySystemSession.setLocalRepositoryManager(localRepositoryManager);
 
         repositorySystemSession.setTransferListener(new ConsoleTransferListener());
@@ -105,10 +110,11 @@ public class ArtifactResolver
         List<RemoteRepository> repositories = new ArrayList<>(remoteRepositoryUris.size());
         int index = 0;
         for (String repositoryUri : remoteRepositoryUris) {
-            repositories.add(new RemoteRepository("repo-" + index++, "default", repositoryUri));
+            repositories.add(new RemoteRepository.Builder("repo-" + index++, "default", repositoryUri).build());
         }
         this.repositories = Collections.unmodifiableList(repositories);
     }
+
 
     public List<Artifact> resolveArtifacts(Artifact... sourceArtifacts)
     {
@@ -124,7 +130,8 @@ public class ArtifactResolver
         for (RemoteRepository repository : repositories) {
             // Hack: avoid using deprecated Maven Central URLs
             if (DEPRECATED_MAVEN_CENTRAL_URIS.contains(repository.getUrl())) {
-                repository = new RemoteRepository(repository.getId(), repository.getContentType(), MAVEN_CENTRAL_URI);
+                repository = new RemoteRepository.Builder(repository.getId(),
+                        repository.getContentType(), MAVEN_CENTRAL_URI).build();
             }
             collectRequest.addRepository(repository);
         }
@@ -133,6 +140,7 @@ public class ArtifactResolver
 
         return resolveArtifacts(dependencyRequest);
     }
+
 
     public List<Artifact> resolvePom(File pomFile)
     {
@@ -153,13 +161,15 @@ public class ArtifactResolver
         ImmutableList.Builder<RemoteRepository> allRepositories = ImmutableList.builder();
         for (RemoteRepository repository : pom.getRemoteProjectRepositories()) {
             if (DEPRECATED_MAVEN_CENTRAL_URIS.contains(repository.getUrl())) {
-                repository = new RemoteRepository(repository.getId(), repository.getContentType(), MAVEN_CENTRAL_URI);
+                repository = new RemoteRepository.Builder(repository.getId(),
+                        repository.getContentType(), MAVEN_CENTRAL_URI).build();
             }
             allRepositories.add(repository);
         }
         for (RemoteRepository repository : repositories) {
             if (DEPRECATED_MAVEN_CENTRAL_URIS.contains(repository.getUrl())) {
-                repository = new RemoteRepository(repository.getId(), repository.getContentType(), MAVEN_CENTRAL_URI);
+                repository = new RemoteRepository.Builder(repository.getId(),
+                        repository.getContentType(), MAVEN_CENTRAL_URI).build();
             }
             allRepositories.add(repository);
         }
@@ -185,12 +195,14 @@ public class ArtifactResolver
                 .collect(toImmutableList());
     }
 
+
     private MavenProject getMavenProject(File pomFile)
     {
         try {
             PlexusContainer container = container();
-            org.apache.maven.repository.RepositorySystem lrs = container.lookup(org.apache.maven.repository.RepositorySystem.class);
+
             ProjectBuilder projectBuilder = container.lookup(ProjectBuilder.class);
+            org.apache.maven.repository.RepositorySystem lrs = container.lookup(org.apache.maven.repository.RepositorySystem.class);
             ProjectBuildingRequest request = new DefaultProjectBuildingRequest();
             request.setSystemProperties(requiredSystemProperties());
             request.setRepositorySession(repositorySystemSession);
@@ -266,7 +278,7 @@ public class ArtifactResolver
         try {
             dependencyResult = repositorySystem.resolveDependencies(repositorySystemSession, dependencyRequest);
         }
-        catch (DependencyResolutionException e) {
+        catch (org.eclipse.aether.resolution.DependencyResolutionException e) {
             dependencyResult = e.getResult();
         }
         List<ArtifactResult> artifactResults = dependencyResult.getArtifactResults();
@@ -291,14 +303,15 @@ public class ArtifactResolver
             ContainerConfiguration cc = new DefaultContainerConfiguration()
                     .setClassWorld(classWorld)
                     .setRealm(null)
-                    .setName("maven");
+                    .setName("maven")
+                    .setClassPathScanning(PlexusConstants.SCANNING_INDEX)
+                    .setAutoWiring(true);
 
             DefaultPlexusContainer container = new DefaultPlexusContainer(cc);
 
             // NOTE: To avoid inconsistencies, we'll use the Thread context class loader exclusively for lookups
             container.setLookupRealm(null);
 
-            container.setLoggerManager(new Slf4jLoggerManager());
             container.getLoggerManager().setThresholds(Logger.LEVEL_INFO);
 
             return container;
@@ -306,5 +319,12 @@ public class ArtifactResolver
         catch (PlexusContainerException e) {
             throw new RuntimeException("Error loading Maven system", e);
         }
+    }
+
+    public static <T> ComponentDescriptor<T> getDescriptor(Class<?> interfaced, Class<T> implementation) {
+        ComponentDescriptor<T> descriptor = new ComponentDescriptor<>();
+        descriptor.setRole(interfaced.getName());
+        descriptor.setImplementationClass(implementation);
+        return descriptor;
     }
 }

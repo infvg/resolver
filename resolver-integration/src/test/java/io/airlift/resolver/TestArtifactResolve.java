@@ -13,9 +13,11 @@
  */
 package io.airlift.resolver;
 
-import org.sonatype.aether.artifact.Artifact;
-import org.testng.Assert;
-import org.testng.annotations.Test;
+
+import org.eclipse.aether.artifact.Artifact;
+import org.eclipse.aether.artifact.DefaultArtifact;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.io.File;
 import java.util.List;
@@ -32,9 +34,9 @@ public class TestArtifactResolve
         ArtifactResolver artifactResolver = new ArtifactResolver("target/local-repo", MAVEN_CENTRAL_URI);
         List<Artifact> artifacts = artifactResolver.resolveArtifacts(new DefaultArtifact("org.apache.maven:maven-core:3.0.4"));
 
-        Assert.assertNotNull(artifacts, "artifacts is null");
+        Assert.assertNotNull("artifacts is null", artifacts);
         for (Artifact artifact : artifacts) {
-            Assert.assertNotNull(artifact.getFile(), "Artifact " + artifact + " is not resolved");
+            Assert.assertNotNull("Artifact " + artifact + " is not resolved", artifact.getFile());
         }
     }
 
@@ -47,9 +49,9 @@ public class TestArtifactResolve
         ArtifactResolver artifactResolver = new ArtifactResolver("target/local-repo", MAVEN_CENTRAL_URI);
         List<Artifact> artifacts = artifactResolver.resolvePom(pomFile);
 
-        Assert.assertNotNull(artifacts, "artifacts is null");
+        Assert.assertNotNull("artifacts is null", artifacts);
         for (Artifact artifact : artifacts) {
-            Assert.assertNotNull(artifact.getFile(), "Artifact " + artifact + " is not resolved");
+            Assert.assertNotNull("Artifact " + artifact + " is not resolved", artifact.getFile());
         }
     }
 }

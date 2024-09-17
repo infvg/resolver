@@ -13,11 +13,12 @@
  */
 package io.airlift.resolver.internal;
 
+import org.eclipse.aether.transfer.TransferCancelledException;
+import org.eclipse.aether.transfer.TransferEvent;
+import org.eclipse.aether.transfer.TransferListener;
+import org.eclipse.aether.transfer.TransferResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.sonatype.aether.transfer.AbstractTransferListener;
-import org.sonatype.aether.transfer.TransferEvent;
-import org.sonatype.aether.transfer.TransferResource;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -27,8 +28,7 @@ import java.util.Locale;
  * A simplistic transfer listener that logs uploads/downloads.
  */
 public class ConsoleTransferListener
-        extends AbstractTransferListener
-{
+        implements TransferListener {
     private final Logger logger;
 
     public ConsoleTransferListener()
@@ -47,6 +47,11 @@ public class ConsoleTransferListener
         String message = event.getRequestType() == TransferEvent.RequestType.PUT ? "Uploading" : "Downloading";
 
         logger.debug(message + ": " + event.getResource().getRepositoryUrl() + event.getResource().getResourceName());
+    }
+
+    @Override
+    public void transferStarted(TransferEvent transferEvent) throws TransferCancelledException {
+
     }
 
     @Override

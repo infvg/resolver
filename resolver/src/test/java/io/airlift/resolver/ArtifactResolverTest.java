@@ -14,11 +14,11 @@
 package io.airlift.resolver;
 
 import com.google.common.collect.ImmutableList;
-import org.sonatype.aether.artifact.Artifact;
-import org.sonatype.aether.resolution.DependencyResolutionException;
-import org.sonatype.aether.util.artifact.DefaultArtifact;
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import org.eclipse.aether.artifact.Artifact;
+import org.eclipse.aether.artifact.DefaultArtifact;
+import org.eclipse.aether.resolution.DependencyResolutionException;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.io.File;
 import java.util.List;
@@ -27,7 +27,7 @@ import java.util.Objects;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.airlift.resolver.ArtifactResolver.MAVEN_CENTRAL_URI;
 import static io.airlift.resolver.ArtifactResolver.USER_LOCAL_REPO;
-import static org.testng.Assert.assertTrue;
+import static org.junit.Assert.assertTrue;
 
 public class ArtifactResolverTest
 {
@@ -38,9 +38,9 @@ public class ArtifactResolverTest
         ArtifactResolver artifactResolver = new ArtifactResolver(USER_LOCAL_REPO, MAVEN_CENTRAL_URI);
         List<Artifact> artifacts = artifactResolver.resolveArtifacts(ImmutableList.of(new DefaultArtifact("org.apache.maven:maven-core:3.0.4")));
 
-        Assert.assertNotNull(artifacts, "artifacts is null");
+        Assert.assertNotNull("artifacts is null", artifacts);
         for (Artifact artifact : artifacts) {
-            Assert.assertNotNull(artifact.getFile(), "Artifact " + artifact + " is not resolved");
+            Assert.assertNotNull("Artifact " + artifact + " is not resolved", artifact.getFile());
         }
     }
 
@@ -49,14 +49,14 @@ public class ArtifactResolverTest
             throws DependencyResolutionException
     {
         File pomFile = new File("src/test/poms/maven-core-3.0.4.pom");
-        Assert.assertTrue(pomFile.canRead());
+        assertTrue(pomFile.canRead());
 
         ArtifactResolver artifactResolver = new ArtifactResolver(USER_LOCAL_REPO, MAVEN_CENTRAL_URI);
         List<Artifact> artifacts = artifactResolver.resolvePom(pomFile);
 
-        Assert.assertNotNull(artifacts, "artifacts is null");
+        Assert.assertNotNull("artifacts is null", artifacts);
         for (Artifact artifact : artifacts) {
-            Assert.assertNotNull(artifact.getFile(), "Artifact " + artifact + " is not resolved");
+            Assert.assertNotNull("Artifact " + artifact + " is not resolved", artifact.getFile());
         }
     }
 
