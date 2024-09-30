@@ -9,7 +9,7 @@
 
     <groupId>io.airlift.resolver</groupId>
     <artifactId>resolver-root</artifactId>
-    <version>1.7-SNAPSHOT</version>
+    <version>1.7-wxd</version>
     <packaging>pom</packaging>
 
     <description>Resolve the dependencies of Maven coordinates or POM file</description>

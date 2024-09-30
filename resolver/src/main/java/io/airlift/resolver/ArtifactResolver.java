@@ -28,12 +28,21 @@ import com.google.common.collect.ImmutableSet;
 import io.airlift.resolver.internal.ConsoleRepositoryListener;
 import io.airlift.resolver.internal.ConsoleTransferListener;
 import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.model.building.DefaultModelBuilder;
+import org.apache.maven.model.building.ModelBuilder;
 import org.apache.maven.project.DefaultProjectBuildingRequest;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.ProjectBuilder;
 import org.apache.maven.project.ProjectBuildingRequest;
 import org.apache.maven.project.ProjectBuildingResult;
+import org.apache.maven.repository.internal.DefaultArtifactDescriptorReader;
+import org.apache.maven.repository.internal.DefaultModelCacheFactory;
+import org.apache.maven.repository.internal.DefaultVersionRangeResolver;
+import org.apache.maven.repository.internal.DefaultVersionResolver;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
+import org.apache.maven.repository.internal.ModelCacheFactory;
+import org.apache.maven.repository.internal.SnapshotMetadataGeneratorFactory;
+import org.apache.maven.repository.internal.VersionsMetadataGeneratorFactory;
 import org.codehaus.plexus.ContainerConfiguration;
 import org.codehaus.plexus.DefaultContainerConfiguration;
 import org.codehaus.plexus.DefaultPlexusContainer;
@@ -42,6 +51,7 @@ import org.codehaus.plexus.PlexusContainer;
 import org.codehaus.plexus.PlexusContainerException;
 import org.codehaus.plexus.classworlds.ClassWorld;
 import org.codehaus.plexus.component.repository.ComponentDescriptor;
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
 import org.codehaus.plexus.logging.Logger;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
@@ -51,7 +61,13 @@ import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.Exclusion;
+import org.eclipse.aether.impl.ArtifactDescriptorReader;
 import org.eclipse.aether.impl.DefaultServiceLocator;
+import org.eclipse.aether.impl.MetadataGeneratorFactory;
+import org.eclipse.aether.impl.ResolverServiceLocator;
+import org.eclipse.aether.impl.VersionRangeResolver;
+import org.eclipse.aether.impl.VersionResolver;
+import org.eclipse.aether.internal.impl.DefaultArtifactResolver;
 import org.eclipse.aether.repository.LocalRepository;
 import org.eclipse.aether.repository.LocalRepositoryManager;
 import org.eclipse.aether.repository.RemoteRepository;
@@ -93,9 +109,16 @@ public class ArtifactResolver
 
     public ArtifactResolver(String localRepositoryDir, List<String> remoteRepositoryUris)
     {
-        DefaultServiceLocator locator = MavenRepositorySystemUtils.newServiceLocator();
+        ResolverServiceLocator locator = new ResolverServiceLocator();
+        locator.addService(ArtifactDescriptorReader.class, DefaultArtifactDescriptorReader.class);
+        locator.addService(VersionResolver.class, DefaultVersionResolver.class);
+        locator.addService(VersionRangeResolver.class, DefaultVersionRangeResolver.class);
+        locator.addService(MetadataGeneratorFactory.class, SnapshotMetadataGeneratorFactory.class);
+        locator.addService(MetadataGeneratorFactory.class, VersionsMetadataGeneratorFactory.class);
+        locator.addService(ModelCacheFactory.class, DefaultModelCacheFactory.class);
         locator.addService(TransporterFactory.class, FileTransporterFactory.class);
         locator.addService(TransporterFactory.class, HttpTransporterFactory.class);
+        locator.setService(org.eclipse.aether.impl.ArtifactResolver.class, io.airlift.resolver.internal.DefaultArtifactResolver.class);
         locator.addService(RepositoryConnectorFactory.class, BasicRepositoryConnectorFactory.class);
         repositorySystem = locator.getService(RepositorySystem.class);
 
@@ -313,7 +336,6 @@ public class ArtifactResolver
             container.setLookupRealm(null);
 
             container.getLoggerManager().setThresholds(Logger.LEVEL_INFO);
-
             return container;
         }
         catch (PlexusContainerException e) {
