@@ -47,7 +47,6 @@ import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.impl.ArtifactDescriptorReader;
-import org.eclipse.aether.impl.DefaultServiceLocator;
 import org.eclipse.aether.impl.MetadataGeneratorFactory;
 import org.eclipse.aether.impl.ResolverArtifactResolver;
 import org.eclipse.aether.impl.VersionRangeResolver;
@@ -95,6 +94,10 @@ public class ArtifactResolver
     private final DefaultRepositorySystemSession repositorySystemSession;
     private final List<RemoteRepository> repositories;
 
+    private ProjectBuilder projectBuilder;
+
+    private ProjectBuildingRequest builderRequest;
+
     public ArtifactResolver(String localRepositoryDir, String... remoteRepositoryUris)
     {
         this(localRepositoryDir, Arrays.asList(remoteRepositoryUris));
@@ -121,6 +124,9 @@ public class ArtifactResolver
 
         repositorySystemSession.setTransferListener(new ConsoleTransferListener());
         repositorySystemSession.setRepositoryListener(new ConsoleRepositoryListener());
+
+        // Recreating ProjectBuilder & ProjectBuilderRequest caused major slowdowns
+        buildProjectBuilder();
 
         List<RemoteRepository> repositories = new ArrayList<>(remoteRepositoryUris.size());
         int index = 0;
@@ -205,9 +211,8 @@ public class ArtifactResolver
                 .collect(toImmutableList());
     }
 
-    private MavenProject getMavenProject(File pomFile)
+    private void buildProjectBuilder()
     {
-        // TODO: move off deprecated org.apache.maven.repository.RepositorySystem (impl is in maven2 compat module)
         try {
             PlexusContainer container = container();
             org.apache.maven.repository.RepositorySystem lrs = container.lookup(org.apache.maven.repository.RepositorySystem.class);
@@ -218,7 +223,21 @@ public class ArtifactResolver
             request.setProcessPlugins(false);
             request.setLocalRepository(lrs.createDefaultLocalRepository());
             request.setRemoteRepositories(Arrays.asList(new ArtifactRepository[] {lrs.createDefaultRemoteRepository()}.clone()));
-            ProjectBuildingResult result = projectBuilder.build(pomFile, request);
+            this.projectBuilder = projectBuilder;
+            this.builderRequest = request;
+         }catch (Exception e) {
+            throw new RuntimeException("Error initializing project builder: ", e);
+        }
+    }
+    private MavenProject getMavenProject(File pomFile)
+    {
+        // TODO: move off deprecated org.apache.maven.repository.RepositorySystem (impl is in maven2 compat module)
+        try {
+            if (projectBuilder == null  || builderRequest == null)
+            {
+                buildProjectBuilder();
+            }
+            ProjectBuildingResult result = projectBuilder.build(pomFile, builderRequest);
             return result.getProject();
         }
         catch (Exception e) {

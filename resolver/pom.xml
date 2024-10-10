@@ -4,7 +4,7 @@
     <parent>
         <groupId>io.airlift.resolver</groupId>
         <artifactId>resolver-root</artifactId>
-        <version>1.7.1-wxd</version>
+        <version>1.7.4-wxd</version>
     </parent>
 
     <groupId>io.airlift.resolver</groupId>
